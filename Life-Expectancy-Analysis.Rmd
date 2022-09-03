@@ -1,0 +1,1526 @@
+---
+title: "Life Expectancy Project"
+author: "Sean 'Cerulean' Johnson"
+date: "2020-12-15"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+
+```{r, message=FALSE}
+library(readxl)
+library(janitor)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(leaps)
+
+```
+
+## Setting  seed
+```{r}
+seed = 1
+set.seed(seed)
+```
+
+## Load data into R
+```{r}
+life_expec <- read_excel(here::here("data/life_expectancy.xlsx"))
+```
+
+## Cleaning data
+
+```{r}
+life_expec <-  clean_names(life_expec)
+#head(life_expec)
+```
+
+*Specific names to change*
+
+```{r}
+life_expec <- life_expec %>% 
+  rename(thin_10to19_years = thinness_1_19_years,
+         thin_5to9_years = thinness_5_9_years,
+         human_development_index = income_composition_of_resources
+                          )
+```
+
+Removed the following variables as they do not add to analysis: infant_deaths, adult_mortality, and human_development_index.
+
+```{r}
+life_expec <- life_expec %>% select(country,year,life_expectancy,population,alcohol,hiv_aids,thin_5to9_years,thin_10to19_years,hepatitis_b,measles,polio,diphtheria,bmi,under_five_deaths,total_expenditure,gdp,percentage_expenditure,schooling,status)
+```
+
+Edited specific countries from undeveloped to developed as the data was inputed incorrectly
+
+>This caused issues with data exploration, specifically when these countries were previously labeled asundeveloped caused outliers in boxplots.
+
+```{r}
+
+#Canada
+life_expec$status[497:512] <- "Developed"
+#view(life_expec$status[497:512])
+
+#Estonia
+life_expec$status[865:880] <- "Developed"
+#view(life_expec$status[865:880])
+
+#Finland
+life_expec$status[913:928] <- "Developed"
+#view(life_expec$status[913:928])
+
+#France
+life_expec$status[929:944] <- "Developed"
+#view(life_expec$status[929:944])
+
+#Greece
+life_expec$status[1025:1040] <- "Developed"
+#view(life_expec$status[1025:1040])
+
+```
+
+See if there are any missing values
+
+```{r}
+#total
+sum(is.na(life_expec))
+
+#variables with missing values
+# 0 NA in sum(is.na(life_expec$country))
+# 0 NA in sum(is.na(life_expec$year))
+# 0 NA in sum(is.na(life_expec$life_expectancy))
+# 624 NA in 
+sum(is.na(life_expec$population))
+# 30 NA in 
+sum(is.na(life_expec$alcohol))
+# 0 NA in sum(is.na(life_expec$hiv_aids))
+# 32 NA in 
+sum(is.na(life_expec$thin_5to9_years))
+# 32 NA in 
+sum(is.na(life_expec$thin_10to19_years))
+# 78 NA in 
+sum(is.na(life_expec$hepatitis_b))
+# 0 NA in sum(is.na(life_expec$measles))
+# 11 NA in 
+sum(is.na(life_expec$polio))
+# 11 NA in 
+sum(is.na(life_expec$diphtheria))
+# 32 NA in 
+sum(is.na(life_expec$bmi))
+# 0 NA in sum(is.na(life_expec$under_five_deaths))
+# 65 NA in 
+sum(is.na(life_expec$total_expenditure))
+# 441 NA in 
+sum(is.na(life_expec$gdp))
+# 0 NA in sum(is.na(life_expec$percentage_expenditure))
+# 160 NA in 
+sum(is.na(life_expec$schooling))
+# 0 NA in sum(is.na(life_expec$status))
+```
+>the largest variable with missing values is population followed by gdp.
+
+
+Omitting all NA values from data to be able to run analysis
+
+>Filling the na values with 0 does not make sense to me as this will throw the analysis by adding weigh to the point 0.
+
+>Removing all rows that contain a NA. There are 1516 values missing of a total 55632 (19*2928) which is about 2.7% of total values.
+
+```{r}
+le_adj <- na.omit(life_expec)
+#dbl check
+#sum(is.na(le_adj))
+```
+
+Checking structure of variables
+```{r}
+summary(le_adj)
+```
+
+Changing categorical variable status into a numeric
+
+```{r}
+le_adj$stat_num <- as.numeric(factor(le_adj$status)) -1
+```
+
+> Devevloping is equal to 1 and developed is equal 0. This will be usefull for exploratory data analysis.
+Also, if there is time, I can use with decision tree analysis like randomForest.
+
+Split dataframe by categorical
+```{r}
+#ordering data set by status
+le_adj <- le_adj[order(le_adj$status),]
+
+le_developed <-le_adj[1:496,]
+le_developing <-le_adj[497:2256,]
+
+#return dataframe to alphabetical list by country
+le_adj <- le_adj[order(le_adj$country),]
+```
+
+> This was done due to the variability of undeveloped nations.
+
+## EDA
+```{r eval=FALSE}
+glimpse(le_adj)
+summary(le_adj)
+```
+
+```{r}
+#non vaccines or gov't
+le_adj %>% 
+    group_by(status) %>% 
+    summarize(count = n(),
+             avg_lifexp = mean(life_expectancy),
+             avg_pop = mean(population),
+             avg_alcohol = mean(alcohol),
+             avg_hiv = mean(hiv_aids),
+             avg_thinLessThan10 = mean(thin_5to9_years),
+             avg_thin10plus = mean(thin_10to19_years),
+             avg_bmi = mean(bmi),
+             avg_under5 = mean(under_five_deaths))
+#vaccines 
+le_adj %>% 
+    group_by(status) %>% 
+    summarize(count = n(),            
+             avg_hep = mean(hepatitis_b),
+             avg_meas = mean(measles),
+             avg_ploio= mean(polio),
+             avg_dipth = mean(diphtheria))
+#gov't input
+le_adj %>% 
+    group_by(status) %>% 
+    summarize(count = n(),
+             avg_totExp = mean(total_expenditure),
+             avg_gdp = mean(gdp),
+             avg_pctExp = mean(percentage_expenditure),
+             avg_school = mean(schooling))
+             
+
+```
+
+### univariate eda
+
+```{r}
+ggplot(data = le_adj, aes(x = life_expectancy))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Life Expectancy", y = "Count")
+
+ggplot(data = le_adj, aes(x = alcohol))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Alcohol", y = "Count")
+
+ggplot(data = le_adj, aes(x = hiv_aids))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 2, fill="#F8766D", alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 2, fill="#00BFC4", alpha = .35)+ labs(x = "HIV Aids", y = "Count")
+
+ggplot(data = le_adj, aes(x = thin_5to9_years))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Thinness 5 to 9 years of age", y = "Count")
+
+ggplot(data = le_adj, aes(x = thin_10to19_years))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Thinness 10 to 19 years of age", y = "Count")
+
+ggplot(data = le_adj, aes(x = bmi))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "BMI", y = "Count")
+
+ggplot(data = le_adj, aes(x = under_five_deaths))+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 500, fill="#00BFC4", alpha = .35)+ labs(x = "Developing Countries \n Under five years of age deaths", y = "Count")
+ggplot(data = le_adj, aes(x = under_five_deaths))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
+   labs(x = "Developed Countries \n Under five years of age deaths", y = "Count")
+
+ggplot(data = le_adj, aes(x = hepatitis_b))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = 1)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Hepatitis B", y = "Count")
+
+ggplot(data = le_adj, aes(x = measles))+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 20000, fill="#00BFC4", alpha = .35)+ labs(x = "Developing Countries \n Measles", y = "Count")
+ggplot(data = le_adj, aes(x = measles))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 10000, fill="#F8766D", alpha = .7)+
+  labs(x = "Developed Countries \n Measles", y = "Count")
+
+ggplot(data = le_adj, aes(x = polio))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 2, fill="#F8766D", alpha = 1)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 2, fill="#00BFC4", alpha = .35)+ labs(x = "Polio", y = "Count")
+
+ggplot(data = le_adj, aes(x = diphtheria))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 2, fill="#F8766D", alpha = 1)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 2, fill="#00BFC4", alpha = .35)+ labs(x = "Diphtheria", y = "Count")
+
+ggplot(data = le_adj, aes(x = total_expenditure))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Total Expenditure", y = "Count")
+
+ggplot(data = le_adj, aes(x = gdp))+
+  #geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 5000, fill="#F8766D", alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 5000, fill="#00BFC4", alpha = .35)+ labs(x = "Developing Countries \n GDP", y = "Count")
+ggplot(data = le_adj, aes(x = gdp))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 10000, fill="#F8766D", alpha = .7)+
+  #geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 5000, fill="#00BFC4", alpha = .35)+ 
+  labs(x = "Developed Countries \n GDP", y = "Count")
+
+ggplot(data = le_adj, aes(x = percentage_expenditure))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1000, fill="#F8766D", alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1000, fill="#00BFC4", alpha = .35)+ labs(x = "Percentage Expenditure", y = "Count")
+
+ggplot(data = le_adj, aes(x = schooling))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Schooling", y = "Count")
+```
+
+Looking at difference between avg developed and avg developing life expectancy
+
+```{r}
+ggplot(le_adj, aes(x=factor(status), y=life_expectancy, color=status, fill=status)) +
+  stat_summary(fun.y="mean", geom="bar")+
+  labs(y = "Life Expectancy", x = "Staus", title="Average global life expectancy based on status")
+  
+```
+
+Further looking at differences between country status
+
+```{r}
+ggplot(data = le_adj, aes(x = life_expectancy))+
+  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .45)+
+  geom_vline(aes(xintercept=79.4),color="red", linetype="dashed", size=.75) +
+  geom_vline(aes(xintercept=65.8),color="blue", linetype="dashed", size=.75)+ labs(x = "Life Expectancy", y = "Count", title = "Life expectancy histogram based on country status")
+
+```
+
+Life expectancy with year attribute
+
+```{r}
+ggplot(data = le_adj, aes(x = year, y = life_expectancy, color= status))+
+  geom_point() + labs(x = "Year", y = "Life Expectancy")
+
+ggplot(data = le_adj, aes(x = year, y = life_expectancy, color=status))+
+  geom_point() + labs(x = "Year", y = "Life Expectancy")+
+  facet_wrap(~status)
+
+ggplot(data = le_adj, aes(x = status, y=life_expectancy))+
+  geom_boxplot(data = subset(le_adj, stat_num == 0), fill="#F8766D") + 
+  geom_boxplot(data = subset(le_adj, stat_num == 1), fill="#00BFC4") +
+  labs(x = "Year", y = "Life Expectancy", title= "Global life expectancy based on status")+
+  facet_wrap(~year,nrow = 2,  ncol = 8,)+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 10, hjust = 1))
+
+```
+
+```{r}
+le_new = le_adj[le_adj$year==2015,c(6,7,11,12,13,16,17,18,19)]
+```
+
+
+```{r}
+try = le_new %>% 
+    group_by(status) %>% 
+    summarize(
+             hiv = mean(hiv_aids),
+             thin5to9 = mean(thin_5to9_years),
+             polio = mean(polio),
+             diphtheria = mean(diphtheria),
+             bmi = mean(bmi),
+             gdp = mean(gdp)/1000,
+             pctExp = mean(percentage_expenditure),
+             school = mean(schooling))
+```
+
+```{r}
+library(tidyverse)
+try2 <- gather(try, type, value, -status)
+```
+
+
+```{r}
+ggplot(try2, aes(type, value)) + 
+  geom_bar(aes(fill = status), stat = "identity", position = "dodge")+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 10, hjust = 1))+
+  ggtitle("Comparison between average country status")+
+  labs(x = "Parameters", y = "Average Value")+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 10, hjust = 1))
+```
+
+Looking at multi variable interactions
+
+```{r}
+ggplot(data = le_adj, aes(x = life_expectancy, y = gdp, color= status, size=population))+
+  geom_point() + labs(x = "Life Expectancy", y = "GDP")
+
+ggplot(data = le_adj, aes(x = life_expectancy, y = total_expenditure, color= status, size=population))+
+  geom_point() + labs(x = "Life Expectancy", y = "Total Expenditure")
+
+ggplot(data = le_adj, aes(x = life_expectancy, y = percentage_expenditure, color= status, size=population))+
+  geom_point() + labs(x = "Life Expectancy", y = "Percentage Expenditure")
+
+ggplot(data = le_adj, aes(x = life_expectancy, y = schooling, color= status, size=population))+
+  geom_point() + labs(x = "Life Expectancy", y = "School")
+```
+
+```{r}
+ggplot(data = life_expec, aes(x = year, y = life_expectancy, color=status))+
+  geom_boxplot() + labs(x = "Year", y = "Life Expectancy")+
+  facet_wrap(~status)
+
+ggplot(data = le_adj, aes(x = year, y = life_expectancy, color=status))+
+  geom_boxplot() + labs(x = "year", y = "life expectancy")+
+  facet_wrap(~status)
+
+```
+
+Correltation matrices
+
+```{r}
+corplt <- le_adj %>%
+    select(life_expectancy, population, alcohol, hiv_aids, thin_5to9_years,thin_10to19_years,bmi,under_five_deaths,hepatitis_b,measles,polio,diphtheria,total_expenditure,gdp,percentage_expenditure,schooling)
+cormat <- cor(corplt)
+melted <- reshape::melt(cormat)
+melted<-melted%>%
+  rename(Var1 = X1, 
+         Var2 = X2)
+
+ggplot(data = melted, aes(x=Var1, y=Var2, fill=value)) +
+  ggtitle("All Countries")+
+  geom_tile(color = "white")+
+ scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson \n Correlation") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 10, hjust = 1))+
+ coord_fixed()
+```
+
+
+
+```{r}
+ggplot(data = melted, aes(x=Var1, y=Var2, fill=value)) +
+  ggtitle("All Countries")+
+  geom_tile(color = "white")+
+ scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson \n Correlation") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 10, hjust = 1))+
+ coord_fixed()
+
+
+corplot <- le_developed %>%
+    select(life_expectancy, population, alcohol, hiv_aids, thin_5to9_years,thin_10to19_years,bmi,under_five_deaths,hepatitis_b,measles,polio,diphtheria,total_expenditure,gdp,percentage_expenditure,schooling)
+cormat <- cor(corplt)
+melted <- reshape::melt(cormat)
+melted<-melted%>%
+  rename(Var1 = X1, 
+         Var2 = X2)
+ggplot(data = melted, aes(x=Var1, y=Var2, fill=value)) +
+  ggtitle("Developed Countries")+
+  geom_tile(color = "white")+
+ scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson \n Correlation") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 10, hjust = 1))+
+ coord_fixed()
+
+corplot <- le_developing %>%
+    select(life_expectancy, population, alcohol, hiv_aids, thin_5to9_years,thin_10to19_years,bmi,under_five_deaths,hepatitis_b,measles,polio,diphtheria,total_expenditure,gdp,percentage_expenditure,schooling)
+cormat <- cor(corplt)
+melted <- reshape::melt(cormat)
+melted<-melted%>%
+  rename(Var1 = X1, 
+         Var2 = X2)
+
+ggplot(data = melted, aes(x=Var1, y=Var2, fill=value)) + 
+  ggtitle("Developing Countries")+
+  geom_tile(color = "white")+
+ scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson \n Correlation") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 10, hjust = 1))+
+ coord_fixed()
+```
+>All Countries::Life Expec High Corr: School, pct exp, gdp, dipth, polio, bmi, alcohol, tot exp, hepB
+                            Low Corr: hiv, thin5to9, thin10to19, under5,measles
+                            
+>Not much differnet with Developed and Developing Countries
+
+Plots of high correlations
+
+```{r}
+ggplot(data = le_adj, aes(x = thin_5to9_years, y = thin_10to19_years, color=status))+
+  geom_point() + labs(x = "Thinness 5 to 9 years of age", y = "Thinness 10 to 19 years of age")
+
+ggplot(data = le_adj, aes(x = gdp, y = percentage_expenditure, color=status))+
+  geom_point() + labs(x = "GDP", y = "Percentage Expenditure")
+
+```
+> Will have to check for multicolinearity
+
+> Use caret packages vif(). This calculates the variation inflation factors of all predictors in regression models, where high values are potentials to be dropped from the model.
+
+_removing indicator and categorical variables under different handles_
+```{r}
+
+le <- le_adj[,3:18]
+
+le_ped <- le_developed[,3:18]
+
+le_ping <- le_developing[,3:18]
+```
+
+##Finding the best method and variable selection through  mean squared error (MSE)
+
+```{r}
+set.seed(seed)
+#all countries
+train = le %>%
+  sample_frac(0.7)
+test = le %>%
+  setdiff(train)
+#developed countries
+trained = le_ped %>%
+  sample_frac(0.7)
+tested = le_ped %>%
+  setdiff(trained)
+#developing countires
+training = le_ping %>%
+  sample_frac(0.7)
+testing = le_ping %>%
+  setdiff(training)
+```
+
+##Create a Baseline 
+
+```{r}
+#Mean only
+base_MSE = mean((mean(train$life_expectancy)-test$life_expectancy)^2)
+base_MSE
+
+base_MSE1 = mean((mean(trained$life_expectancy)-tested$life_expectancy)^2)
+base_MSE1
+
+base_MSE2 = mean((mean(training$life_expectancy)-testing$life_expectancy)^2)
+base_MSE2
+
+```
+##Ordinary Least Squares
+
+```{r}
+lm = lm(life_expectancy ~., train)
+summary(lm)
+
+test = test %>%
+  mutate(predictions = predict(lm, test))
+
+slr_MSE_test = test %>%
+  summarize(slr_MSE_test = mean((life_expectancy-predictions)^2))
+slr_MSE_test
+
+lm1 = lm(life_expectancy ~., trained)
+summary(lm1)
+
+tested = tested %>%
+  mutate(predictions = predict(lm1, tested))
+
+slr_MSE_test1 = tested %>%
+  summarize(slr_MSE_test1 = mean((life_expectancy-predictions)^2))
+slr_MSE_test1
+
+lm2 = lm(life_expectancy ~., training)
+summary(lm2)
+
+testing = testing %>%
+  mutate(predictions = predict(lm2, testing))
+
+slr_MSE_test2 = testing %>%
+  summarize(slr_MSE_test2 = mean((life_expectancy-predictions)^2))
+slr_MSE_test2
+
+```
+
+## Best Subsets 
+
+```{r}
+regfit_full = regsubsets(life_expectancy ~ ., data=train) 
+reg_summary = summary(regfit_full)
+reg_summary
+names(reg_summary)
+reg_summary$rsq
+
+regfit_full1 = regsubsets(life_expectancy ~ ., data=trained) 
+reg_summary1 = summary(regfit_full1)
+reg_summary1
+names(reg_summary1)
+reg_summary1$rsq
+
+regfit_full2 = regsubsets(life_expectancy ~ ., data=training) 
+reg_summary2 = summary(regfit_full2)
+reg_summary2
+names(reg_summary2)
+reg_summary2$rsq
+
+```
+>developed countries data set has issues with hiv_aids
+
+```{r}
+par(mfrow = c(2,2))
+plot(reg_summary$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+
+plot(reg_summary$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type = "l")
+adj_r2_max = which.max(reg_summary$adjr2)
+points(adj_r2_max, reg_summary$adjr2[adj_r2_max], col ="red", cex = 2, pch = 20)
+
+plot(reg_summary$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+cp_min = which.min(reg_summary$cp) 
+points(cp_min, reg_summary$cp[cp_min], col = "red", cex = 2, pch = 20)
+
+plot(reg_summary$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+bic_min = which.min(reg_summary$bic) 
+points(bic_min, reg_summary$bic[bic_min], col = "red", cex = 2, pch = 20)
+
+
+
+par(mfrow = c(2,2))
+plot(reg_summary1$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+
+plot(reg_summary1$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type = "l")
+adj_r2_max = which.max(reg_summary1$adjr2)
+points(adj_r2_max, reg_summary1$adjr2[adj_r2_max], col ="red", cex = 2, pch = 20)
+
+plot(reg_summary1$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+cp_min = which.min(reg_summary1$cp) 
+points(cp_min, reg_summary1$cp[cp_min], col = "red", cex = 2, pch = 20)
+
+plot(reg_summary1$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+bic_min = which.min(reg_summary1$bic) 
+points(bic_min, reg_summary1$bic[bic_min], col = "red", cex = 2, pch = 20)
+
+
+
+par(mfrow = c(2,2))
+plot(reg_summary2$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+
+plot(reg_summary2$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type = "l")
+adj_r2_max = which.max(reg_summary2$adjr2)
+points(adj_r2_max, reg_summary2$adjr2[adj_r2_max], col ="red", cex = 2, pch = 20)
+
+plot(reg_summary2$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+cp_min = which.min(reg_summary2$cp) 
+points(cp_min, reg_summary2$cp[cp_min], col = "red", cex = 2, pch = 20)
+
+plot(reg_summary2$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+bic_min = which.min(reg_summary2$bic) 
+points(bic_min, reg_summary2$bic[bic_min], col = "red", cex = 2, pch = 20)
+
+```
+r squared
+```{r}
+plot(regfit_full, scale="r2")
+
+plot(regfit_full1, scale="r2")
+
+plot(regfit_full2, scale="r2")
+```
+
+adj rsq
+```{r}
+plot(regfit_full, scale="adjr2")
+coef(regfit_full, 8)
+
+plot(regfit_full1, scale="adjr2")
+coef(regfit_full1, 8)
+
+plot(regfit_full2, scale="adjr2")
+coef(regfit_full2, 8)
+
+```
+
+```{r}
+lm = lm(life_expectancy ~ alcohol + hiv_aids + thin_5to9_years + polio + diphtheria + bmi + percentage_expenditure + schooling, train)
+summary(lm)
+
+test = test %>%
+  mutate(predictions = predict(lm, test))
+
+adj_MSE_test = test %>%
+  summarize(adj_MSE_test = mean((life_expectancy-predictions)^2))
+adj_MSE_test
+
+
+lm1 = lm(life_expectancy ~ alcohol + hepatitis_b + under_five_deaths + total_expenditure + gdp + bmi + schooling + hiv_aids, trained)
+summary(lm1)
+
+tested = tested %>%
+  mutate(predictions = predict(lm1, tested))
+
+adj_MSE_test1 = tested %>%
+  summarize(adj_MSE_test1 = mean((life_expectancy-predictions)^2))
+adj_MSE_test1
+
+
+lm2 = lm(life_expectancy ~ alcohol + hiv_aids + total_expenditure + polio + diphtheria + bmi + percentage_expenditure + schooling, training)
+summary(lm2)
+
+testing = testing %>%
+  mutate(predictions = predict(lm2, testing))
+
+adj_MSE_test2 = testing %>%
+  summarize(adj_MSE_test2 = mean((life_expectancy-predictions)^2))
+adj_MSE_test2
+```
+
+marrows cp
+```{r}
+plot(regfit_full, scale="Cp")
+coef(regfit_full, 8)
+
+plot(regfit_full1, scale="Cp")
+coef(regfit_full1, 8)
+
+plot(regfit_full2, scale="Cp")
+coef(regfit_full2, 8)
+```
+
+```{r}
+lm = lm(life_expectancy ~ alcohol + hiv_aids + thin_5to9_years + polio + diphtheria + bmi + percentage_expenditure + schooling, train)
+summary(lm)
+
+test = test %>%
+  mutate(predictions = predict(lm, test))
+
+Cp_MSE_test = test %>%
+  summarize(Cp_MSE_test = mean((life_expectancy-predictions)^2))
+Cp_MSE_test
+
+
+lm1 = lm(life_expectancy ~ alcohol + hepatitis_b + under_five_deaths + total_expenditure + gdp + bmi + schooling + hiv_aids, trained)
+summary(lm1)
+
+tested = tested %>%
+  mutate(predictions = predict(lm1, tested))
+
+Cp_MSE_test1 = tested %>%
+  summarize(Cp_MSE_test1 = mean((life_expectancy-predictions)^2))
+Cp_MSE_test1
+
+
+lm2 = lm(life_expectancy ~ alcohol + hiv_aids + total_expenditure + polio + diphtheria + bmi + percentage_expenditure + schooling, training)
+summary(lm2)
+
+testing = testing %>%
+  mutate(predictions = predict(lm2, testing))
+
+Cp_MSE_test2 = testing %>%
+  summarize(Cp_MSE_test2 = mean((life_expectancy-predictions)^2))
+Cp_MSE_test2
+```
+
+bic
+```{r}
+plot(regfit_full, scale="bic")
+coef(regfit_full, 7)
+
+plot(regfit_full1, scale="bic")
+coef(regfit_full1, 7)
+
+plot(regfit_full2, scale="bic")
+coef(regfit_full2, 7)
+```
+
+```{r}
+lm = lm(life_expectancy ~ alcohol + hiv_aids + polio + diphtheria + bmi + percentage_expenditure + schooling, train)
+summary(lm)
+
+test = test %>%
+  mutate(predictions = predict(lm, test))
+
+bic_MSE_test = test %>%
+  summarize(bic_MSE_test = mean((life_expectancy-predictions)^2))
+bic_MSE_test
+
+
+lm1 = lm(life_expectancy ~ alcohol + hepatitis_b + total_expenditure + gdp + bmi + schooling + hiv_aids, trained)
+summary(lm1)
+
+tested = tested %>%
+  mutate(predictions = predict(lm1, tested))
+
+bic_MSE_test1 = tested %>%
+  summarize(bic_MSE_test1 = mean((life_expectancy-predictions)^2))
+bic_MSE_test1
+
+
+lm2 = lm(life_expectancy ~ alcohol + hiv_aids +  polio + diphtheria + bmi + percentage_expenditure + schooling, training)
+summary(lm2)
+
+testing = testing %>%
+  mutate(predictions = predict(lm2, testing))
+
+bic_MSE_test2 = testing %>%
+  summarize(bic_MSE_test2 = mean((life_expectancy-predictions)^2))
+bic_MSE_test2
+```
+
+```{r}
+test = test[,1:16]
+tested = tested[,1:16]
+testing = testing[,1:16]
+```
+
+## Best Subsets with CV
+
+```{r}
+regfit_best_train = regsubsets(life_expectancy ~ ., data=train, nvmax = 15) 
+summary(regfit_best_train)
+
+```
+
+```{r}
+test_mat = model.matrix (life_expectancy~., data = test)
+
+```
+
+```{r}
+val_errors = rep(NA,15)
+
+# Iterate over each size i
+for(i in 1:15){
+    
+    # Extract the vector of predictors in the best fit model on i predictors
+    coefi = coef(regfit_best_train, id = i)
+    
+    # Make predictions using matrix multiplication of the test matirx and the coefficients vector
+    pred = test_mat[,names(coefi)]%*%coefi
+    
+    # Calculate the MSE
+    val_errors[i] = mean((test$life_expectancy-pred)^2)
+}
+```
+
+
+```{r}
+# Find the model with the smallest error
+min = which.min(val_errors)
+min
+# Plot the errors for each model size
+plot(val_errors, type = 'b')
+points(min, val_errors[min][1], col = "red", cex = 2, pch = 20)
+```
+
+```{r}
+#Creating a predict function for regsubsets
+predict.regsubsets = function(object,newdata,id,...){
+      form = as.formula(object$call[[2]]) 
+      mat = model.matrix(form,newdata)   
+      coefi = coef(object,id=id)          
+      xvars = names(coefi)                
+      mat[,xvars]%*%coefi               
+}
+
+```
+
+
+```{r}
+regfit_best = regsubsets(life_expectancy~., data = train, nvmax = 15)
+coef(regfit_best_train, 12)
+```
+
+
+```{r}
+lm = lm(life_expectancy ~ alcohol + hiv_aids +thin_5to9_years + thin_10to19_years + hepatitis_b + polio + diphtheria + bmi + total_expenditure +percentage_expenditure + gdp + schooling, train)
+summary(lm)
+
+test = test %>%
+  mutate(predictions = predict(lm, test))
+
+bscv_MSE_test = test %>%
+  summarize(bscv_MSE_test = mean((life_expectancy-predictions)^2))
+bscv_MSE_test
+```
+	
+
+```{r}
+regfit_best_train1 = regsubsets(life_expectancy ~ ., data=trained, nvmax = 15) 
+summary(regfit_best_train1)
+
+```
+>Note j will be 14 here
+
+
+
+```{r}
+test_mat1 = model.matrix (life_expectancy~., data = tested)
+
+```
+
+```{r}
+val_errors1 = rep(NA,15)
+
+# Iterate over each size j
+for(j in 1:14){
+    
+    # Extract the vector of predictors in the best fit model on j predictors
+    coefi1 = coef(regfit_best_train1, id = j)
+    
+    # Make predictions using matrix multiplication of the test matirx and the coefficients vector
+    pred1 = test_mat1[,names(coefi1)]%*%coefi1
+    
+    # Calculate the MSE
+    val_errors1[j] = mean((tested$life_expectancy-pred1)^2)
+}
+```
+
+
+```{r}
+# Find the model with the smallest error
+min1 = which.min(val_errors1)
+min1
+# Plot the errors for each model size
+plot(val_errors1, type = 'b')
+points(min1, val_errors1[min1][1], col = "red", cex = 2, pch = 20)
+```
+
+
+```{r}
+regfit_best1 = regsubsets(life_expectancy~., data = trained, nvmax = 15)
+coef(regfit_best_train1, 12)
+```
+
+
+```{r}
+lm1 = lm(life_expectancy ~ population + alcohol + hiv_aids  + thin_10to19_years + hepatitis_b + measles +  bmi + under_five_deaths + total_expenditure +percentage_expenditure + gdp + schooling, trained)
+summary(lm1)
+
+tested = tested %>%
+  mutate(predictions = predict(lm1, tested))
+
+bscv_MSE_test1 = tested %>%
+  summarize(bscv_MSE_test1 = mean((life_expectancy-predictions)^2))
+bscv_MSE_test1	
+```	
+
+
+```{r}
+regfit_best_train2 = regsubsets(life_expectancy ~ ., data=training, nvmax = 15) 
+summary(regfit_best_train2)
+
+```
+
+```{r}
+test_mat2 = model.matrix (life_expectancy~., data = testing)
+
+```
+
+```{r}
+val_errors2 = rep(NA,15)
+
+# Iterate over each size k
+for(k in 1:14){
+    
+    # Extract the vector of predictors in the best fit model on k predictors
+    coefi2 = coef(regfit_best_train2, id = k)
+    
+    # Make predictions using matrix multiplication of the test matirx and the coefficients vector
+    pred2 = test_mat2[,names(coefi2)]%*%coefi2
+    
+    # Calculate the MSE
+    val_errors2[k] = mean((testing$life_expectancy-pred2)^2)
+}
+```
+
+
+```{r}
+# Find the model with the smallest error
+min2 = which.min(val_errors2)
+min2
+# Plot the errors for each model size
+plot(val_errors2, type = 'b')
+points(min2, val_errors2[min2][1], col = "red", cex = 2, pch = 20)
+```
+
+
+```{r}
+regfit_best2 = regsubsets(life_expectancy~., data = training, nvmax = 15)
+coef(regfit_best_train2, 7)
+```
+
+
+```{r}
+lm2 = lm(life_expectancy ~ alcohol + hiv_aids  + polio + bmi + diphtheria + percentage_expenditure + schooling, training)
+summary(lm1)
+
+testing = testing %>%
+  mutate(predictions = predict(lm2, testing))
+
+bscv_MSE_test2 = testing %>%
+  summarize(bscv_MSE_test2 = mean((life_expectancy-predictions)^2))
+bscv_MSE_test2	
+```	
+
+
+##Ridge Regression
+
+```{r}
+library(glmnet)
+library(pls)
+#remove column 17: prediction
+test = test[,1:16]
+tested = tested[,1:16]
+testing = testing[,1:16]
+```
+
+
+```{r}
+set.seed(seed)
+#remove life_expectancy column
+x_train = model.matrix(life_expectancy~., train)[,-1]
+x_test = model.matrix(life_expectancy~., test)[,-1]
+
+
+
+y_train = train %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test = test %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+grid = 10^seq(10, -2, length = 100)
+
+ridge_mod = cv.glmnet(x_train, y_train, alpha = 0, lambda=grid, thresh = 1e-12) 
+
+
+cv.out00 = cv.glmnet(x_train, y_train, alpha = 0) 
+plot(cv.out00)
+bestlam = cv.out00$lambda.min
+
+
+ridge_pred = predict(ridge_mod, s = bestlam, newx = x_test)
+
+rr_MSE_test = mean((ridge_pred - y_test)^2)
+rr_MSE_test
+
+
+#remove life_expectancy column
+x_train1 = model.matrix(life_expectancy~., trained)[,-1]
+x_test1 = model.matrix(life_expectancy~., tested)[,-1]
+
+
+
+y_train1 = trained %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test1 = tested %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+grid = 10^seq(10, -2, length = 100)
+
+ridge_mod1 = cv.glmnet(x_train1, y_train1, alpha = 0, lambda=grid, thresh = 1e-12) 
+
+
+cv.out11 = cv.glmnet(x_train1, y_train1, alpha = 0) 
+plot(cv.out11)
+bestlam1 = cv.out11$lambda.min
+
+
+ridge_pred1 = predict(ridge_mod1, s = bestlam1, newx = x_test1)
+
+rr_MSE_test1 = mean((ridge_pred1 - y_test1)^2)
+rr_MSE_test1
+
+
+
+
+#remove life_expectancy column
+x_train2 = model.matrix(life_expectancy~., training)[,-1]
+x_test2 = model.matrix(life_expectancy~., testing)[,-1]
+
+
+
+y_train2 = training %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test2 = testing %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+grid = 10^seq(10, -2, length = 100)
+
+ridge_mod2 = cv.glmnet(x_train2, y_train2, alpha = 0, lambda=grid, thresh = 1e-12) 
+
+
+cv.out22 = cv.glmnet(x_train2, y_train2, alpha = 0) 
+plot(cv.out22)
+bestlam2 = cv.out22$lambda.min
+
+
+ridge_pred2 = predict(ridge_mod2, s = bestlam2, newx = x_test2)
+
+rr_MSE_test2 = mean((ridge_pred2 - y_test2)^2)
+rr_MSE_test2
+
+```
+
+	
+
+##LASSO
+
+```{r}
+set.seed(seed)
+#remove life_expectancy column
+x_train = model.matrix(life_expectancy~., train)[,-1]
+x_test = model.matrix(life_expectancy~., test)[,-1]
+x_test = x_test[,1:15]
+
+y_train = train %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test = test %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+grid = 10^seq(10, -2, length = 100)
+
+lasso_mod = glmnet(x_train,y_train, alpha = 1, lambda = grid)
+
+
+cv.out = cv.glmnet(x_train, y_train, alpha = 1) 
+plot(cv.out)
+bestlam = cv.out$lambda.min
+
+lasso_pred = predict(lasso_mod, s = bestlam, newx = x_test) # Use best lambda to predict test data
+lasso_MSE_test = mean((lasso_pred - y_test)^2) 
+lasso_MSE_test
+
+#rsq calc
+rss <-sum((lasso_pred - y_test)^2)
+tss <-sum((lasso_pred - mean(y_test))^2)
+rsq_lasso <- 1 -rss/tss
+
+
+#remove life_expectancy column
+x_train1 = model.matrix(life_expectancy~., trained)[,-1]
+x_test1 = model.matrix(life_expectancy~., tested)[,-1]
+
+
+
+y_train1 = trained %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test1 = tested %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+grid = 10^seq(10, -2, length = 100)
+
+lasso_mod1 = cv.glmnet(x_train1, y_train1, alpha = 1, lambda=grid, thresh = 1e-12) 
+
+
+cv.out1 = cv.glmnet(x_train1, y_train1, alpha = 1) 
+plot(cv.out1)
+bestlam1 = cv.out1$lambda.min
+
+
+lasso_pred1 = predict(lasso_mod1, s = bestlam1, newx = x_test1)
+lasso_MSE_test1 = mean((lasso_pred1 - y_test1)^2)
+lasso_MSE_test1
+
+
+
+
+#remove life_expectancy column
+x_train2 = model.matrix(life_expectancy~., training)[,-1]
+x_test2 = model.matrix(life_expectancy~., testing)[,-1]
+
+
+
+y_train2 = training %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test2 = testing %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+grid = 10^seq(10, -2, length = 100)
+
+lasso_mod2 = cv.glmnet(x_train2, y_train2, alpha = 1, lambda=grid, thresh = 1e-12) 
+
+
+cv.out2 = cv.glmnet(x_train2, y_train2, alpha = 1) 
+plot(cv.out2)
+bestlam2 = cv.out2$lambda.min
+
+
+lasso_pred2 = predict(lasso_mod2, s = bestlam2, newx = x_test2)
+lasso_MSE_test2 = mean((lasso_pred2 - y_test2)^2)
+lasso_MSE_test2
+
+```
+
+## PCR
+
+```{r}
+set.seed(seed)
+
+pcr_fit = pcr(life_expectancy~., data = train, scale = TRUE, validation = "CV")
+summary(pcr_fit)
+
+#have to remove variable hiv_aids as it is causing an infite loop
+pcr_fit1 = pcr(life_expectancy~.-hiv_aids, data = trained, scale = TRUE, validation = "CV")
+summary(pcr_fit1)
+
+
+pcr_fit2 = pcr(life_expectancy~., data = training, scale = TRUE, validation = "CV")
+summary(pcr_fit2)
+
+```
+ _Finding number of components_
+
+```{r}
+validationplot(pcr_fit, val.type = "MSEP")
+validationplot(pcr_fit1, val.type = "MSEP")
+validationplot(pcr_fit2, val.type = "MSEP")
+
+```
+
+
+```{r}
+
+x_train = model.matrix(life_expectancy~., train)[,-1]
+x_test = model.matrix(life_expectancy~., test)[,-1]
+
+y_train = train %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test = test %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+pcr_pred = predict(pcr_fit, x_test, ncomp=13)
+pcr_MSE_test = mean((pcr_pred-y_test)^2)
+pcr_MSE_test
+
+
+
+x_train1 = model.matrix(life_expectancy~.-hiv_aids, trained)[,-1]
+x_test1 = model.matrix(life_expectancy~.-hiv_aids, tested)[,-1]
+
+y_train1 = trained %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test1 = tested %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+pcr_pred1 = predict(pcr_fit1, x_test1, ncomp=12)
+pcr_MSE_test1 = mean((pcr_pred1-y_test1)^2)
+pcr_MSE_test1
+
+
+
+x_train2 = model.matrix(life_expectancy~., training)[,-1]
+x_test2 = model.matrix(life_expectancy~., testing)[,-1]
+
+y_train2 = training %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test2 = testing %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+pcr_pred2 = predict(pcr_fit2, x_test2, ncomp=15)
+pcr_MSE_test2 = mean((pcr_pred2-y_test2)^2)
+pcr_MSE_test2
+
+```
+
+##PLS
+
+```{r}
+set.seed(seed)
+
+pls_fit = plsr(life_expectancy~., data = train, scale = TRUE, validation = "CV")
+summary(pls_fit)
+
+#removed hiv_aids variable as it was causing a loop error
+pls_fit1 = plsr(life_expectancy~.-hiv_aids, data = trained, scale = TRUE, validation = "CV")
+summary(pls_fit1)
+
+
+pls_fit2 = plsr(life_expectancy~., data = training, scale = TRUE, validation = "CV")
+summary(pls_fit2)
+
+```
+
+
+
+```{r}
+validationplot(pls_fit, val.type = "MSEP")
+
+validationplot(pls_fit1, val.type = "MSEP")
+
+validationplot(pls_fit2, val.type = "MSEP")
+```
+
+
+```{r}
+x_train = model.matrix(life_expectancy~., train)[,-1]
+x_test = model.matrix(life_expectancy~., test)[,-1]
+
+
+y_train = train %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test = test %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+pls_pred = predict(pls_fit, x_test, ncomp = 8)
+pls_MSE_test = mean((pls_pred - y_test)^2)
+pls_MSE_test
+
+
+
+x_train1 = model.matrix(life_expectancy~.-hiv_aids, trained)[,-1]
+x_test1 = model.matrix(life_expectancy~.-hiv_aids, tested)[,-1]
+
+y_train1 = trained %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test1 = tested %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+pls_pred1 = predict(pls_fit1, x_test1, ncomp = 5)
+pls_MSE_test1 = mean((pls_pred1 - y_test1)^2)
+pls_MSE_test1
+
+
+
+
+x_train2 = model.matrix(life_expectancy~., training)[,-1]
+x_test2 = model.matrix(life_expectancy~., testing)[,-1]
+
+y_train2 = training %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test2 = testing %>%
+  select(life_expectancy) %>%
+  unlist() %>%
+  as.numeric()
+
+pls_pred2 = predict(pls_fit2, x_test2, ncomp = 9)
+pls_MSE_test2 = mean((pls_pred2 - y_test2)^2)
+pls_MSE_test2
+
+
+```
+Load caret, see if there is any variance inflation
+```{r}
+library(caret)
+```
+
+
+##All Countries
+>The lowest MSE average from all multiple seeds was found using Lasso Regression method.
+
+```{r}
+coef(cv.out)
+rsq_lasso
+plot(cv.out)
+
+
+lm = lm(life_expectancy ~population+alcohol+hiv_aids+thin_5to9_years+polio+diphtheria+bmi+gdp+percentage_expenditure+schooling, le_adj)
+modsum =summary(lm)
+r2 = modsum$r.squared
+r2 = round(r2, digits=4)
+r2
+rsq = "Rsq = " 
+ggplot(le_adj,aes(x=year,y=life_expectancy))+
+  geom_point()+
+  labs(title= "All countries", y="Life Expectancy", x = "Year")+
+  geom_smooth(se=FALSE, method="lm")+
+  #geom_label(label=r2, x=2012, y=40,)+
+  geom_label(label=paste(rsq,r2), x=2012, y=40)
+```
+>best model is life_expectancy~ hiv_aids+thin_5to9_years+polio+diphtheria+bmi+gdp+percentage_expenditure+schooling
+>mse is 19.67224
+
+
+##All Developed
+>The lowest MSE average from all 10 seeds was found using the OLS method.
+
+```{r}
+#removed hiv_aids due to errors
+
+lm1 = lm(life_expectancy ~.-hiv_aids, trained)
+slr_MSE_test1
+
+car::vif(lm1)
+
+summary(lm1)
+```
+
+```{r}
+#removed hiv_aids due to errors
+
+lm1 = lm(life_expectancy ~.-hiv_aids-thin_5to9_years, trained)
+tested = tested %>%
+  mutate(predictions = predict(lm1, tested))
+
+slr_MSE_test1 = tested %>%
+  summarize(slr_MSE_test1 = mean((life_expectancy-predictions)^2))
+slr_MSE_test1
+
+car::vif(lm1)
+
+summary(lm1)
+```
+
+
+
+
+```{r}
+
+#removed hiv_aids due to run error.
+
+lm1 = lm(life_expectancy ~.-hiv_aids-thin_5to9_years-percentage_expenditure-total_expenditure, trained)
+tested = tested %>%
+  mutate(predictions = predict(lm1, tested))
+
+slr_MSE_test1 = tested %>%
+  summarize(slr_MSE_test1 = mean((life_expectancy-predictions)^2))
+slr_MSE_test1
+
+car::vif(lm1)
+
+summary(lm1)
+```
+
+```{r}
+
+#removed hiv_aids due to errors
+
+lm1 = lm(life_expectancy ~.-hiv_aids-thin_5to9_years-percentage_expenditure-total_expenditure-polio, trained)
+tested = tested %>%
+  mutate(predictions = predict(lm1, tested))
+
+slr_MSE_test1 = tested %>%
+  summarize(slr_MSE_test1 = mean((life_expectancy-predictions)^2))
+slr_MSE_test1
+
+car::vif(lm1)
+
+summary(lm1)
+plot(lm1)
+
+
+lm = lm(life_expectancy ~population+alcohol+thin_10to19_years+hepatitis_b+measles+polio+diphtheria+bmi+under_five_deaths+gdp+schooling+thin_5to9_years+percentage_expenditure+total_expenditure, le_developed)
+modsum =summary(lm)
+r2 = modsum$r.squared
+r2 = round(r2, digits=4)
+r2
+rsq = "Rsq = " 
+ggplot(le_developed,aes(x=year,y=life_expectancy))+
+  geom_point()+
+  labs(title= "Developed countries", y="Life Expectancy", x = "Year")+
+  geom_smooth(se=FALSE, method="lm")+
+  #geom_label(label=r2, x=2012, y=40,)+
+  geom_label(label=paste(rsq,r2), x=2012, y=70)
+```
+
+
+
+>Best variable selection is life_expectancy ~ population + alcohol + thin_10to19_years +hepatitis_b+measles+diphtheria+bmi+under_five_deaths+gdp_schooling
+if there is absolute colinearity.
+
+>Otherwise the variuable selection is life_expectancy~population+alcohol+thin_10to19_years+hepatitis_b+measles+polio+diphtheria+bmi+under_five_deaths+gdp+schooling+thin_5to9_years+percentage_expenditure+total_expenditure
+
+
+
+##All Developing
+
+>The lowest MSE average from all 10 seeds was found using the Best Subset with Cross-Validation method.
+
+
+```{r}
+lm2 = lm(life_expectancy ~ alcohol + hiv_aids  + polio + bmi + diphtheria + percentage_expenditure + schooling, training)
+
+car::vif(lm2)
+bscv_MSE_test2	
+
+plot(lm2)
+
+
+lm = lm(life_expectancy ~ alcohol+hiv_aids+polio+bmi+diphtheria+percentage_expenditure+schooling, le_developing)
+modsum =summary(lm)
+r2 = modsum$r.squared
+r2 = round(r2, digits=4)
+r2
+rsq = "Rsq = " 
+ggplot(le_developing,aes(x=year,y=life_expectancy))+
+  geom_point()+
+  labs(title= "Developing countries", y="Life Expectancy", x = "Year")+
+  geom_smooth(se=FALSE, method="lm")+
+  #geom_label(label=r2, x=2012, y=40,)+
+  geom_label(label=paste(rsq,r2), x=2012, y=45)
+```
+
+> all vif for variables are low
+
+>variable selection for developing countries is:
+life_expectancy ~ alcohol + hiv_aids  + polio + bmi + diphtheria + percentage_expenditure + schooling
+
+
+.
