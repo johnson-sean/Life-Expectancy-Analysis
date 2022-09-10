@@ -1,6 +1,6 @@
 ---
 title: "Life Expectancy Project"
-author: "Sean 'Cerulean' Johnson"
+author: "Sean Cerulean Johnson"
 date: "2020-12-15"
 output:
   pdf_document: default
@@ -19,7 +19,6 @@ library(readr)
 library(dplyr)
 library(ggplot2)
 library(leaps)
-
 ```
 
 ## Setting  seed
@@ -37,7 +36,6 @@ life_expec <- read_excel(here::here("data/life_expectancy.xlsx"))
 
 ```{r}
 life_expec <-  clean_names(life_expec)
-#head(life_expec)
 ```
 
 *Specific names to change*
@@ -53,7 +51,8 @@ life_expec <- life_expec %>%
 Removed the following variables as they do not add to analysis: infant_deaths, adult_mortality, and human_development_index.
 
 ```{r}
-life_expec <- life_expec %>% select(country,year,life_expectancy,population,alcohol,hiv_aids,thin_5to9_years,thin_10to19_years,hepatitis_b,measles,polio,diphtheria,bmi,under_five_deaths,total_expenditure,gdp,percentage_expenditure,schooling,status)
+life_expec <- life_expec %>% 
+  select(-infant_deaths,-adult_mortality,-human_development_index)
 ```
 
 Edited specific countries from undeveloped to developed as the data was inputed incorrectly
@@ -61,7 +60,6 @@ Edited specific countries from undeveloped to developed as the data was inputed 
 >This caused issues with data exploration, specifically when these countries were previously labeled asundeveloped caused outliers in boxplots.
 
 ```{r}
-
 #Canada
 life_expec$status[497:512] <- "Developed"
 #view(life_expec$status[497:512])
@@ -89,38 +87,7 @@ See if there are any missing values
 ```{r}
 #total
 sum(is.na(life_expec))
-
-#variables with missing values
-# 0 NA in sum(is.na(life_expec$country))
-# 0 NA in sum(is.na(life_expec$year))
-# 0 NA in sum(is.na(life_expec$life_expectancy))
-# 624 NA in 
-sum(is.na(life_expec$population))
-# 30 NA in 
-sum(is.na(life_expec$alcohol))
-# 0 NA in sum(is.na(life_expec$hiv_aids))
-# 32 NA in 
-sum(is.na(life_expec$thin_5to9_years))
-# 32 NA in 
-sum(is.na(life_expec$thin_10to19_years))
-# 78 NA in 
-sum(is.na(life_expec$hepatitis_b))
-# 0 NA in sum(is.na(life_expec$measles))
-# 11 NA in 
-sum(is.na(life_expec$polio))
-# 11 NA in 
-sum(is.na(life_expec$diphtheria))
-# 32 NA in 
-sum(is.na(life_expec$bmi))
-# 0 NA in sum(is.na(life_expec$under_five_deaths))
-# 65 NA in 
-sum(is.na(life_expec$total_expenditure))
-# 441 NA in 
-sum(is.na(life_expec$gdp))
-# 0 NA in sum(is.na(life_expec$percentage_expenditure))
-# 160 NA in 
-sum(is.na(life_expec$schooling))
-# 0 NA in sum(is.na(life_expec$status))
+apply(X=is.na(life_expec), MARGIN = 2, FUN = sum)
 ```
 >the largest variable with missing values is population followed by gdp.
 
@@ -133,13 +100,6 @@ Omitting all NA values from data to be able to run analysis
 
 ```{r}
 le_adj <- na.omit(life_expec)
-#dbl check
-#sum(is.na(le_adj))
-```
-
-Checking structure of variables
-```{r}
-summary(le_adj)
 ```
 
 Changing categorical variable status into a numeric
@@ -156,9 +116,10 @@ Split dataframe by categorical
 #ordering data set by status
 le_adj <- le_adj[order(le_adj$status),]
 
-le_developed <-le_adj[1:496,]
-le_developing <-le_adj[497:2256,]
-
+le_developed <-le_adj%>%
+ filter(status=="developed")
+le_developing <-le_adj%>%
+ filter(status=="developing")
 #return dataframe to alphabetical list by country
 le_adj <- le_adj[order(le_adj$country),]
 ```
@@ -166,10 +127,6 @@ le_adj <- le_adj[order(le_adj$country),]
 > This was done due to the variability of undeveloped nations.
 
 ## EDA
-```{r eval=FALSE}
-glimpse(le_adj)
-summary(le_adj)
-```
 
 ```{r}
 #non vaccines or gov't
@@ -201,7 +158,6 @@ le_adj %>%
              avg_pctExp = mean(percentage_expenditure),
              avg_school = mean(schooling))
              
-
 ```
 
 ### univariate eda
@@ -277,10 +233,9 @@ ggplot(data = le_adj, aes(x = schooling))+
 ```
 
 Looking at difference between avg developed and avg developing life expectancy
-
 ```{r}
 ggplot(le_adj, aes(x=factor(status), y=life_expectancy, color=status, fill=status)) +
-  stat_summary(fun.y="mean", geom="bar")+
+  stat_summary(fun="mean", geom="bar")+
   labs(y = "Life Expectancy", x = "Staus", title="Average global life expectancy based on status")
   
 ```
@@ -317,7 +272,10 @@ ggplot(data = le_adj, aes(x = status, y=life_expectancy))+
 ```
 
 ```{r}
-le_new = le_adj[le_adj$year==2015,c(6,7,11,12,13,16,17,18,19)]
+le_new = le_adj%>%
+  filter(year==2015)%>%
+  select(status,hiv_aids,thin_5to9_years,polio,diphtheria,
+         bmi,gdp,percentage_expenditure,schooling)
 ```
 
 
@@ -336,8 +294,7 @@ try = le_new %>%
 ```
 
 ```{r}
-library(tidyverse)
-try2 <- gather(try, type, value, -status)
+try2 <- tidyr::gather(try, type, value, -status)
 ```
 
 
@@ -349,7 +306,8 @@ ggplot(try2, aes(type, value)) +
   labs(x = "Parameters", y = "Average Value")+
   theme_minimal()+
   theme(plot.title = element_text(hjust = 0.5))+
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 10, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 10, hjust = 1))+
+  scale_fill_manual(values = c("purple","green"))
 ```
 
 Looking at multi variable interactions
@@ -379,8 +337,12 @@ ggplot(data = le_adj, aes(x = year, y = life_expectancy, color=status))+
 
 ```
 
-Correltation matrices
+## Correltation matrices
 
+Note: This was after some models were tested, that linearity may be an issue and was
+checked via correlation matrices
+
+### All Countries
 ```{r}
 corplt <- le_adj %>%
     select(life_expectancy, population, alcohol, hiv_aids, thin_5to9_years,thin_10to19_years,bmi,under_five_deaths,hepatitis_b,measles,polio,diphtheria,total_expenditure,gdp,percentage_expenditure,schooling)
@@ -403,19 +365,8 @@ ggplot(data = melted, aes(x=Var1, y=Var2, fill=value)) +
 ```
 
 
-
+### Developed
 ```{r}
-ggplot(data = melted, aes(x=Var1, y=Var2, fill=value)) +
-  ggtitle("All Countries")+
-  geom_tile(color = "white")+
- scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
-   midpoint = 0, limit = c(-1,1), space = "Lab", 
-   name="Pearson \n Correlation") +
-  theme_minimal()+ 
- theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-    size = 10, hjust = 1))+
- coord_fixed()
-
 
 corplot <- le_developed %>%
     select(life_expectancy, population, alcohol, hiv_aids, thin_5to9_years,thin_10to19_years,bmi,under_five_deaths,hepatitis_b,measles,polio,diphtheria,total_expenditure,gdp,percentage_expenditure,schooling)
@@ -434,6 +385,10 @@ ggplot(data = melted, aes(x=Var1, y=Var2, fill=value)) +
  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
     size = 10, hjust = 1))+
  coord_fixed()
+```
+
+### Developing
+```{r}
 
 corplot <- le_developing %>%
     select(life_expectancy, population, alcohol, hiv_aids, thin_5to9_years,thin_10to19_years,bmi,under_five_deaths,hepatitis_b,measles,polio,diphtheria,total_expenditure,gdp,percentage_expenditure,schooling)
@@ -478,8 +433,9 @@ _removing indicator and categorical variables under different handles_
 
 le <- le_adj[,3:18]
 
+#develo-ped
 le_ped <- le_developed[,3:18]
-
+develo-ping
 le_ping <- le_developing[,3:18]
 ```
 
