@@ -1,6 +1,6 @@
 ---
 title: "Life Expectancy Project"
-author: "Sean Cerulean Johnson"
+author: "Sean Johnson"
 date: "2020-12-15"
 output:
   pdf_document: default
@@ -10,7 +10,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Load Libraries
+# Libraries
 
 ```{r, message=FALSE}
 library(readxl)
@@ -19,20 +19,24 @@ library(readr)
 library(dplyr)
 library(ggplot2)
 library(leaps)
+library(rlang)
 ```
 
-## Setting  seed
+## Seed
 ```{r}
 seed = 1
 set.seed(seed)
 ```
 
-## Load data into R
+# Data
+
+Data was collected from the World Heath Organization
+
 ```{r}
 life_expec <- read_excel(here::here("data/life_expectancy.xlsx"))
 ```
 
-## Cleaning data
+# Wrangling
 
 ```{r}
 life_expec <-  clean_names(life_expec)
@@ -55,79 +59,63 @@ life_expec <- life_expec %>%
   select(-infant_deaths,-adult_mortality,-human_development_index)
 ```
 
-Edited specific countries from undeveloped to developed as the data was inputed incorrectly
+Edited specific countries from undeveloped to developed as the data was imputed incorrectly
 
->This caused issues with data exploration, specifically when these countries were previously labeled asundeveloped caused outliers in boxplots.
+> This caused issues with data exploration, specifically when these countries were previously labeled asundeveloped caused outliers in boxplots.
 
 ```{r}
-#Canada
-life_expec$status[497:512] <- "Developed"
-#view(life_expec$status[497:512])
-
-#Estonia
-life_expec$status[865:880] <- "Developed"
-#view(life_expec$status[865:880])
-
-#Finland
-life_expec$status[913:928] <- "Developed"
-#view(life_expec$status[913:928])
-
-#France
-life_expec$status[929:944] <- "Developed"
-#view(life_expec$status[929:944])
-
-#Greece
-life_expec$status[1025:1040] <- "Developed"
-#view(life_expec$status[1025:1040])
+life_expec <- life_expec%>%
+  mutate(status = case_when(country=="Canada"~"Developed",
+                            country=="Estonia"~"Developed",
+                            country=="Finland"~"Developed",
+                            country=="France"~"Developed",
+                            country=="Greece"~"Developed",
+                            TRUE ~ status))
 
 ```
 
-See if there are any missing values
+## NA's
 
 ```{r}
-#total
 sum(is.na(life_expec))
 apply(X=is.na(life_expec), MARGIN = 2, FUN = sum)
 ```
 >the largest variable with missing values is population followed by gdp.
 
-
 Omitting all NA values from data to be able to run analysis
 
->Filling the na values with 0 does not make sense to me as this will throw the analysis by adding weigh to the point 0.
+>Filling the NA values with 0 does not make sense to me as this will throw the analysis by adding weigh to the point 0.
 
->Removing all rows that contain a NA. There are 1516 values missing of a total 55632 (19*2928) which is about 2.7% of total values.
-
+### Adjusted dataset
 ```{r}
 le_adj <- na.omit(life_expec)
 ```
 
-Changing categorical variable status into a numeric
+*Changing categorical variable status into a numeric*
 
 ```{r}
 le_adj$stat_num <- as.numeric(factor(le_adj$status)) -1
 ```
 
-> Devevloping is equal to 1 and developed is equal 0. This will be usefull for exploratory data analysis.
-Also, if there is time, I can use with decision tree analysis like randomForest.
+> Countries that are Devevloping will be represented as 1 and Developed will be 0. This will be usefull for exploratory data analysis.
 
-Split dataframe by categorical
+### Split by status
 ```{r}
 #ordering data set by status
 le_adj <- le_adj[order(le_adj$status),]
 
 le_developed <-le_adj%>%
- filter(status=="developed")
+ filter(status=="Developed")
 le_developing <-le_adj%>%
- filter(status=="developing")
-#return dataframe to alphabetical list by country
+ filter(status=="Developing")
+
+#return to alphabetical list by country
 le_adj <- le_adj[order(le_adj$country),]
 ```
 
-> This was done due to the variability of undeveloped nations.
-
 ## EDA
 
+### Summaries
 ```{r}
 #non vaccines or gov't
 le_adj %>% 
@@ -160,83 +148,31 @@ le_adj %>%
              
 ```
 
-### univariate eda
-
+### Univariate eda
 ```{r}
-ggplot(data = le_adj, aes(x = life_expectancy))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Life Expectancy", y = "Count")
+list = c("life_expectancy","alcohol","hiv_aids","thin_5to9_years","thin_10to19_years",
+         "bmi","under_five_deaths","hepatitis_b","measles","polio","diphtheria",
+         "total_expenditure","gdp","percentage_expenditure","schooling")
 
-ggplot(data = le_adj, aes(x = alcohol))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Alcohol", y = "Count")
-
-ggplot(data = le_adj, aes(x = hiv_aids))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 2, fill="#F8766D", alpha = .7)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 2, fill="#00BFC4", alpha = .35)+ labs(x = "HIV Aids", y = "Count")
-
-ggplot(data = le_adj, aes(x = thin_5to9_years))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Thinness 5 to 9 years of age", y = "Count")
-
-ggplot(data = le_adj, aes(x = thin_10to19_years))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Thinness 10 to 19 years of age", y = "Count")
-
-ggplot(data = le_adj, aes(x = bmi))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "BMI", y = "Count")
-
-ggplot(data = le_adj, aes(x = under_five_deaths))+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 500, fill="#00BFC4", alpha = .35)+ labs(x = "Developing Countries \n Under five years of age deaths", y = "Count")
-ggplot(data = le_adj, aes(x = under_five_deaths))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
-   labs(x = "Developed Countries \n Under five years of age deaths", y = "Count")
-
-ggplot(data = le_adj, aes(x = hepatitis_b))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = 1)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Hepatitis B", y = "Count")
-
-ggplot(data = le_adj, aes(x = measles))+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 20000, fill="#00BFC4", alpha = .35)+ labs(x = "Developing Countries \n Measles", y = "Count")
-ggplot(data = le_adj, aes(x = measles))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 10000, fill="#F8766D", alpha = .7)+
-  labs(x = "Developed Countries \n Measles", y = "Count")
-
-ggplot(data = le_adj, aes(x = polio))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 2, fill="#F8766D", alpha = 1)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 2, fill="#00BFC4", alpha = .35)+ labs(x = "Polio", y = "Count")
-
-ggplot(data = le_adj, aes(x = diphtheria))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 2, fill="#F8766D", alpha = 1)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 2, fill="#00BFC4", alpha = .35)+ labs(x = "Diphtheria", y = "Count")
-
-ggplot(data = le_adj, aes(x = total_expenditure))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Total Expenditure", y = "Count")
-
-ggplot(data = le_adj, aes(x = gdp))+
-  #geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 5000, fill="#F8766D", alpha = .7)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 5000, fill="#00BFC4", alpha = .35)+ labs(x = "Developing Countries \n GDP", y = "Count")
-ggplot(data = le_adj, aes(x = gdp))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 10000, fill="#F8766D", alpha = .7)+
-  #geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 5000, fill="#00BFC4", alpha = .35)+ 
-  labs(x = "Developed Countries \n GDP", y = "Count")
-
-ggplot(data = le_adj, aes(x = percentage_expenditure))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1000, fill="#F8766D", alpha = .7)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1000, fill="#00BFC4", alpha = .35)+ labs(x = "Percentage Expenditure", y = "Count")
-
-ggplot(data = le_adj, aes(x = schooling))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .35)+ labs(x = "Schooling", y = "Count")
+for (i in list) {
+  name = i
+  plt<-le_adj%>%
+    ggplot(aes(x = !!sym(i)))+
+    geom_histogram(data = subset(le_adj, stat_num == 0),aes(fill=factor(stat_num)), binwidth = 1,alpha=0.8)+
+    geom_histogram(data = subset(le_adj, stat_num == 1),aes(fill=factor(stat_num)), binwidth = 1,alpha=0.2)+
+    labs(x = name, y = "Count")+
+    scale_fill_manual(name="Status",values=c("#0197F6","#B2B5B6"),labels=c("Developed","Developing"))
+  print(plt)
+}
 ```
+
 
 Looking at difference between avg developed and avg developing life expectancy
 ```{r}
-ggplot(le_adj, aes(x=factor(status), y=life_expectancy, color=status, fill=status)) +
+ggplot(le_adj, aes(x=factor(status), y=life_expectancy, fill=status)) +
   stat_summary(fun="mean", geom="bar")+
-  labs(y = "Life Expectancy", x = "Staus", title="Average global life expectancy based on status")
+  labs(y = "Life Expectancy", x = "Staus", title="Average global life expectancy based on status")+
+    scale_fill_manual(name="Status",values=c("#0197F6","#B2B5B6"))
   
 ```
 
@@ -244,10 +180,15 @@ Further looking at differences between country status
 
 ```{r}
 ggplot(data = le_adj, aes(x = life_expectancy))+
-  geom_histogram(data = subset(le_adj, stat_num == 0), binwidth = 1, fill="#F8766D", alpha = .7)+
-  geom_histogram(data = subset(le_adj, stat_num == 1), binwidth = 1, fill="#00BFC4", alpha = .45)+
-  geom_vline(aes(xintercept=79.4),color="red", linetype="dashed", size=.75) +
-  geom_vline(aes(xintercept=65.8),color="blue", linetype="dashed", size=.75)+ labs(x = "Life Expectancy", y = "Count", title = "Life expectancy histogram based on country status")
+  geom_histogram(data = subset(le_adj, stat_num == 0),aes(fill=factor(stat_num)),
+                 binwidth = 1, alpha = .7)+
+  geom_histogram(data = subset(le_adj, stat_num == 1),aes(fill=factor(stat_num)),
+                 binwidth = 1, alpha = .45)+
+  geom_vline(aes(xintercept=79.4),color="blue", linetype="dashed", size=.75) +
+  geom_vline(aes(xintercept=65.8),color="black", linetype="dashed", size=.75)+ labs(x = "Life Expectancy", y = "Count", title = "Life expectancy histogram based on country status")+
+    scale_fill_manual(name="Status",values=c("#0197F6","#B2B5B6"),labels=c("Developed","Developing"))
+
+
 
 ```
 
@@ -255,32 +196,37 @@ Life expectancy with year attribute
 
 ```{r}
 ggplot(data = le_adj, aes(x = year, y = life_expectancy, color= status))+
-  geom_point() + labs(x = "Year", y = "Life Expectancy")
+  geom_point() + 
+  labs(x = "Year", y = "Life Expectancy")+
+  scale_color_manual(name="Status",values=c("#0197F6","#B2B5B6"),labels=c("Developed","Developing"))
 
 ggplot(data = le_adj, aes(x = year, y = life_expectancy, color=status))+
   geom_point() + labs(x = "Year", y = "Life Expectancy")+
+  scale_color_manual(name="Status",values=c("#0197F6","#B2B5B6"),labels=c("Developed","Developing"))+
   facet_wrap(~status)
 
 ggplot(data = le_adj, aes(x = status, y=life_expectancy))+
-  geom_boxplot(data = subset(le_adj, stat_num == 0), fill="#F8766D") + 
-  geom_boxplot(data = subset(le_adj, stat_num == 1), fill="#00BFC4") +
+  geom_boxplot(data = subset(le_adj, stat_num == 0), aes(fill=factor(stat_num))) + 
+  geom_boxplot(data = subset(le_adj, stat_num == 1), aes(fill=factor(stat_num))) +
   labs(x = "Year", y = "Life Expectancy", title= "Global life expectancy based on status")+
+  scale_fill_manual(name="Status",values=c("#0197F6","#B2B5B6"),labels=c("Developed","Developing"))+
   facet_wrap(~year,nrow = 2,  ncol = 8,)+
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-    size = 10, hjust = 1))
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
 
 ```
-
+### Data for a given year
 ```{r}
-le_new = le_adj%>%
+le_new <- le_adj%>%
   filter(year==2015)%>%
   select(status,hiv_aids,thin_5to9_years,polio,diphtheria,
          bmi,gdp,percentage_expenditure,schooling)
 ```
 
-
+*renaming for next visual*
 ```{r}
-try = le_new %>% 
+le_new <- le_new %>% 
     group_by(status) %>% 
     summarize(
              hiv = mean(hiv_aids),
@@ -294,45 +240,47 @@ try = le_new %>%
 ```
 
 ```{r}
-try2 <- tidyr::gather(try, type, value, -status)
+le_new <- tidyr::pivot_longer(le_new,!status, names_to = "type",values_to = "value")
 ```
 
 
 ```{r}
-ggplot(try2, aes(type, value)) + 
+ggplot(le_new, aes(type, value)) + 
   geom_bar(aes(fill = status), stat = "identity", position = "dodge")+
   theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 10, hjust = 1))+
-  ggtitle("Comparison between average country status")+
+  ggtitle("Comparison between average country status: 2015")+
   labs(x = "Parameters", y = "Average Value")+
   theme_minimal()+
   theme(plot.title = element_text(hjust = 0.5))+
   theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 10, hjust = 1))+
-  scale_fill_manual(values = c("purple","green"))
+  scale_fill_manual(values = c("#0197F6","#B2B5B6"))
 ```
 
 Looking at multi variable interactions
 
 ```{r}
-ggplot(data = le_adj, aes(x = life_expectancy, y = gdp, color= status, size=population))+
-  geom_point() + labs(x = "Life Expectancy", y = "GDP")
+list = c("gdp","total_expenditure","percentage_expenditure","schooling")
 
-ggplot(data = le_adj, aes(x = life_expectancy, y = total_expenditure, color= status, size=population))+
-  geom_point() + labs(x = "Life Expectancy", y = "Total Expenditure")
-
-ggplot(data = le_adj, aes(x = life_expectancy, y = percentage_expenditure, color= status, size=population))+
-  geom_point() + labs(x = "Life Expectancy", y = "Percentage Expenditure")
-
-ggplot(data = le_adj, aes(x = life_expectancy, y = schooling, color= status, size=population))+
-  geom_point() + labs(x = "Life Expectancy", y = "School")
+for (i in list) {
+  name = i
+  plt<-le_adj%>%
+    ggplot(aes(x = life_expectancy, y = !!sym(i), color= status, size=population))+
+    geom_point() + 
+    labs(x = "Life Expectancy", y = name)+
+    scale_color_manual(name="Status", values=c("#0197F6","#B2B5B6"))
+  print(plt)
+}   
 ```
 
 ```{r}
-ggplot(data = life_expec, aes(x = year, y = life_expectancy, color=status))+
+ggplot(data = life_expec, aes(x = year, y = life_expectancy, fill=status))+
   geom_boxplot() + labs(x = "Year", y = "Life Expectancy")+
+  scale_fill_manual(values = c("#0197F6","#B2B5B6"))+
   facet_wrap(~status)
 
-ggplot(data = le_adj, aes(x = year, y = life_expectancy, color=status))+
+ggplot(data = le_adj, aes(x = year, y = life_expectancy, fill=status))+
   geom_boxplot() + labs(x = "year", y = "life expectancy")+
+  scale_fill_manual(values = c("#0197F6","#B2B5B6"))+
   facet_wrap(~status)
 
 ```
@@ -355,7 +303,7 @@ melted<-melted%>%
 ggplot(data = melted, aes(x=Var1, y=Var2, fill=value)) +
   ggtitle("All Countries")+
   geom_tile(color = "white")+
- scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+ scale_fill_gradient2(low = "#B2B5B6", high = "#0197F6", mid = "white", 
    midpoint = 0, limit = c(-1,1), space = "Lab", 
    name="Pearson \n Correlation") +
   theme_minimal()+ 
@@ -378,7 +326,7 @@ melted<-melted%>%
 ggplot(data = melted, aes(x=Var1, y=Var2, fill=value)) +
   ggtitle("Developed Countries")+
   geom_tile(color = "white")+
- scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+ scale_fill_gradient2(low = "#B2B5B6", high = "#0197F6", mid = "white", 
    midpoint = 0, limit = c(-1,1), space = "Lab", 
    name="Pearson \n Correlation") +
   theme_minimal()+ 
@@ -401,7 +349,7 @@ melted<-melted%>%
 ggplot(data = melted, aes(x=Var1, y=Var2, fill=value)) + 
   ggtitle("Developing Countries")+
   geom_tile(color = "white")+
- scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+ scale_fill_gradient2(low = "#B2B5B6", high = "#0197F6", mid = "white", 
    midpoint = 0, limit = c(-1,1), space = "Lab", 
    name="Pearson \n Correlation") +
   theme_minimal()+ 
@@ -418,28 +366,29 @@ Plots of high correlations
 
 ```{r}
 ggplot(data = le_adj, aes(x = thin_5to9_years, y = thin_10to19_years, color=status))+
-  geom_point() + labs(x = "Thinness 5 to 9 years of age", y = "Thinness 10 to 19 years of age")
+  geom_point()+
+  labs(x = "Thinness 5 to 9 years of age", y = "Thinness 10 to 19 years of age")+
+  scale_color_manual(name="Status",values = c("#0197F6","#B2B5B6"))
+
 
 ggplot(data = le_adj, aes(x = gdp, y = percentage_expenditure, color=status))+
-  geom_point() + labs(x = "GDP", y = "Percentage Expenditure")
-
+  geom_point()+
+  labs(x = "GDP", y = "Percentage Expenditure")+
+  scale_color_manual(name="Status",values = c("#0197F6","#B2B5B6"))
 ```
-> Will have to check for multicolinearity
-
 > Use caret packages vif(). This calculates the variation inflation factors of all predictors in regression models, where high values are potentials to be dropped from the model.
 
-_removing indicator and categorical variables under different handles_
+# Modelin Preparation
+*removing indicator and categorical variables under different handles*
 ```{r}
-
-le <- le_adj[,3:18]
-
+le <- le_adj[,4:19]
 #develo-ped
-le_ped <- le_developed[,3:18]
-develo-ping
-le_ping <- le_developing[,3:18]
+le_ped <- le_developed[,4:19]
+#develo-ping
+le_ping <- le_developing[,4:19]
 ```
 
-##Finding the best method and variable selection through  mean squared error (MSE)
+## Variable selection : mean squared error (MSE)
 
 ```{r}
 set.seed(seed)
@@ -448,11 +397,13 @@ train = le %>%
   sample_frac(0.7)
 test = le %>%
   setdiff(train)
+
 #developed countries
 trained = le_ped %>%
   sample_frac(0.7)
 tested = le_ped %>%
   setdiff(trained)
+
 #developing countires
 training = le_ping %>%
   sample_frac(0.7)
@@ -460,7 +411,7 @@ testing = le_ping %>%
   setdiff(training)
 ```
 
-##Create a Baseline 
+## Baseline 
 
 ```{r}
 #Mean only
@@ -474,7 +425,8 @@ base_MSE2 = mean((mean(training$life_expectancy)-testing$life_expectancy)^2)
 base_MSE2
 
 ```
-##Ordinary Least Squares
+
+##Ordinary Least Squares - Baseline
 
 ```{r}
 lm = lm(life_expectancy ~., train)
@@ -511,6 +463,7 @@ slr_MSE_test2
 
 ## Best Subsets 
 
+### r squared
 ```{r}
 regfit_full = regsubsets(life_expectancy ~ ., data=train) 
 reg_summary = summary(regfit_full)
@@ -534,8 +487,8 @@ reg_summary2$rsq
 >developed countries data set has issues with hiv_aids
 
 ```{r}
-par(mfrow = c(2,2))
-plot(reg_summary$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+par(mfrow = c(4,4))
+plot(reg_summary$rss, type = "l")
 
 plot(reg_summary$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type = "l")
 adj_r2_max = which.max(reg_summary$adjr2)
@@ -584,7 +537,7 @@ bic_min = which.min(reg_summary2$bic)
 points(bic_min, reg_summary2$bic[bic_min], col = "red", cex = 2, pch = 20)
 
 ```
-r squared
+
 ```{r}
 plot(regfit_full, scale="r2")
 
@@ -593,7 +546,7 @@ plot(regfit_full1, scale="r2")
 plot(regfit_full2, scale="r2")
 ```
 
-adj rsq
+### adj rsq
 ```{r}
 plot(regfit_full, scale="adjr2")
 coef(regfit_full, 8)
@@ -640,7 +593,7 @@ adj_MSE_test2 = testing %>%
 adj_MSE_test2
 ```
 
-marrows cp
+### marrows cp
 ```{r}
 plot(regfit_full, scale="Cp")
 coef(regfit_full, 8)
@@ -686,7 +639,7 @@ Cp_MSE_test2 = testing %>%
 Cp_MSE_test2
 ```
 
-bic
+### bic
 ```{r}
 plot(regfit_full, scale="bic")
 coef(regfit_full, 7)
@@ -928,121 +881,10 @@ bscv_MSE_test2 = testing %>%
 bscv_MSE_test2	
 ```	
 
-
-##Ridge Regression
-
 ```{r}
 library(glmnet)
 library(pls)
-#remove column 17: prediction
-test = test[,1:16]
-tested = tested[,1:16]
-testing = testing[,1:16]
 ```
-
-
-```{r}
-set.seed(seed)
-#remove life_expectancy column
-x_train = model.matrix(life_expectancy~., train)[,-1]
-x_test = model.matrix(life_expectancy~., test)[,-1]
-
-
-
-y_train = train %>%
-  select(life_expectancy) %>%
-  unlist() %>%
-  as.numeric()
-
-y_test = test %>%
-  select(life_expectancy) %>%
-  unlist() %>%
-  as.numeric()
-
-grid = 10^seq(10, -2, length = 100)
-
-ridge_mod = cv.glmnet(x_train, y_train, alpha = 0, lambda=grid, thresh = 1e-12) 
-
-
-cv.out00 = cv.glmnet(x_train, y_train, alpha = 0) 
-plot(cv.out00)
-bestlam = cv.out00$lambda.min
-
-
-ridge_pred = predict(ridge_mod, s = bestlam, newx = x_test)
-
-rr_MSE_test = mean((ridge_pred - y_test)^2)
-rr_MSE_test
-
-
-#remove life_expectancy column
-x_train1 = model.matrix(life_expectancy~., trained)[,-1]
-x_test1 = model.matrix(life_expectancy~., tested)[,-1]
-
-
-
-y_train1 = trained %>%
-  select(life_expectancy) %>%
-  unlist() %>%
-  as.numeric()
-
-y_test1 = tested %>%
-  select(life_expectancy) %>%
-  unlist() %>%
-  as.numeric()
-
-grid = 10^seq(10, -2, length = 100)
-
-ridge_mod1 = cv.glmnet(x_train1, y_train1, alpha = 0, lambda=grid, thresh = 1e-12) 
-
-
-cv.out11 = cv.glmnet(x_train1, y_train1, alpha = 0) 
-plot(cv.out11)
-bestlam1 = cv.out11$lambda.min
-
-
-ridge_pred1 = predict(ridge_mod1, s = bestlam1, newx = x_test1)
-
-rr_MSE_test1 = mean((ridge_pred1 - y_test1)^2)
-rr_MSE_test1
-
-
-
-
-#remove life_expectancy column
-x_train2 = model.matrix(life_expectancy~., training)[,-1]
-x_test2 = model.matrix(life_expectancy~., testing)[,-1]
-
-
-
-y_train2 = training %>%
-  select(life_expectancy) %>%
-  unlist() %>%
-  as.numeric()
-
-y_test2 = testing %>%
-  select(life_expectancy) %>%
-  unlist() %>%
-  as.numeric()
-
-grid = 10^seq(10, -2, length = 100)
-
-ridge_mod2 = cv.glmnet(x_train2, y_train2, alpha = 0, lambda=grid, thresh = 1e-12) 
-
-
-cv.out22 = cv.glmnet(x_train2, y_train2, alpha = 0) 
-plot(cv.out22)
-bestlam2 = cv.out22$lambda.min
-
-
-ridge_pred2 = predict(ridge_mod2, s = bestlam2, newx = x_test2)
-
-rr_MSE_test2 = mean((ridge_pred2 - y_test2)^2)
-rr_MSE_test2
-
-```
-
-	
 
 ##LASSO
 
@@ -1085,7 +927,7 @@ rsq_lasso <- 1 -rss/tss
 #remove life_expectancy column
 x_train1 = model.matrix(life_expectancy~., trained)[,-1]
 x_test1 = model.matrix(life_expectancy~., tested)[,-1]
-
+x_test1 = x_test1[,1:15]
 
 
 y_train1 = trained %>%
@@ -1118,7 +960,7 @@ lasso_MSE_test1
 #remove life_expectancy column
 x_train2 = model.matrix(life_expectancy~., training)[,-1]
 x_test2 = model.matrix(life_expectancy~., testing)[,-1]
-
+x_test2 = x_test2[,1:15]
 
 
 y_train2 = training %>%
@@ -1146,7 +988,7 @@ lasso_MSE_test2 = mean((lasso_pred2 - y_test2)^2)
 lasso_MSE_test2
 
 ```
-
+# Extra
 ## PCR
 
 ```{r}
@@ -1164,7 +1006,8 @@ pcr_fit2 = pcr(life_expectancy~., data = training, scale = TRUE, validation = "C
 summary(pcr_fit2)
 
 ```
- _Finding number of components_
+ 
+*Finding number of components*
 
 ```{r}
 validationplot(pcr_fit, val.type = "MSEP")
@@ -1175,9 +1018,9 @@ validationplot(pcr_fit2, val.type = "MSEP")
 
 
 ```{r}
-
 x_train = model.matrix(life_expectancy~., train)[,-1]
 x_test = model.matrix(life_expectancy~., test)[,-1]
+x_test = x_test[,1:15]
 
 y_train = train %>%
   select(life_expectancy) %>%
@@ -1197,6 +1040,7 @@ pcr_MSE_test
 
 x_train1 = model.matrix(life_expectancy~.-hiv_aids, trained)[,-1]
 x_test1 = model.matrix(life_expectancy~.-hiv_aids, tested)[,-1]
+x_test1 = x_test1[,1:14]
 
 y_train1 = trained %>%
   select(life_expectancy) %>%
@@ -1208,7 +1052,7 @@ y_test1 = tested %>%
   unlist() %>%
   as.numeric()
 
-pcr_pred1 = predict(pcr_fit1, x_test1, ncomp=12)
+pcr_pred1 = predict(pcr_fit1, x_test1, ncomp=14)
 pcr_MSE_test1 = mean((pcr_pred1-y_test1)^2)
 pcr_MSE_test1
 
@@ -1216,6 +1060,7 @@ pcr_MSE_test1
 
 x_train2 = model.matrix(life_expectancy~., training)[,-1]
 x_test2 = model.matrix(life_expectancy~., testing)[,-1]
+x_test2 = x_test2[,1:15]
 
 y_train2 = training %>%
   select(life_expectancy) %>%
@@ -1265,7 +1110,7 @@ validationplot(pls_fit2, val.type = "MSEP")
 ```{r}
 x_train = model.matrix(life_expectancy~., train)[,-1]
 x_test = model.matrix(life_expectancy~., test)[,-1]
-
+x_test = x_test[,1:15]
 
 y_train = train %>%
   select(life_expectancy) %>%
@@ -1285,6 +1130,7 @@ pls_MSE_test
 
 x_train1 = model.matrix(life_expectancy~.-hiv_aids, trained)[,-1]
 x_test1 = model.matrix(life_expectancy~.-hiv_aids, tested)[,-1]
+x_test1 = x_test1[,1:14]
 
 y_train1 = trained %>%
   select(life_expectancy) %>%
@@ -1305,6 +1151,7 @@ pls_MSE_test1
 
 x_train2 = model.matrix(life_expectancy~., training)[,-1]
 x_test2 = model.matrix(life_expectancy~., testing)[,-1]
+x_test2 = x_test2[,1:15]
 
 y_train2 = training %>%
   select(life_expectancy) %>%
@@ -1319,8 +1166,6 @@ y_test2 = testing %>%
 pls_pred2 = predict(pls_fit2, x_test2, ncomp = 9)
 pls_MSE_test2 = mean((pls_pred2 - y_test2)^2)
 pls_MSE_test2
-
-
 ```
 Load caret, see if there is any variance inflation
 ```{r}
@@ -1328,7 +1173,7 @@ library(caret)
 ```
 
 
-##All Countries
+# All Countries
 >The lowest MSE average from all multiple seeds was found using Lasso Regression method.
 
 ```{r}
@@ -1354,7 +1199,7 @@ ggplot(le_adj,aes(x=year,y=life_expectancy))+
 >mse is 19.67224
 
 
-##All Developed
+#All Developed
 >The lowest MSE average from all 10 seeds was found using the OLS method.
 
 ```{r}
@@ -1445,7 +1290,7 @@ if there is absolute colinearity.
 
 
 
-##All Developing
+#All Developing
 
 >The lowest MSE average from all 10 seeds was found using the Best Subset with Cross-Validation method.
 
