@@ -33,7 +33,7 @@ set.seed(seed)
 Data was collected from the World Heath Organization
 
 ```{r}
-life_expec <- read_excel(here::here("data/life_expectancy.xlsx"))
+life_expec <- read_excel(here::here("data","life_expectancy.xlsx"))
 ```
 
 # Wrangling
