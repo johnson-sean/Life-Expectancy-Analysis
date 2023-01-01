@@ -1,5 +1,5 @@
 ---
-title: "task2"
+title: "interactive life expectancy"
 author: "SJ"
 date: "4/8/2022"
 output: html_document
@@ -3276,13 +3276,9 @@ fig_All=fig3%>%
   )
 ```
 
-_Task 2 Visual_
 ```{r}
 fig_All%>%
         layout(title = 'Life Expectancy by Sex for all Country', xaxis = list(title = 'Male Life EXpectancy'), 
          yaxis = list(title = 'Female Life EXpectancy'), legend = list(title=list(text='Geological Location')))
 ```
-
-
-
 
